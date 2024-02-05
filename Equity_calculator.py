@@ -2,10 +2,7 @@ import numpy as np
 import random
 import time
 import copy
-import concurrent.futures
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from threading import Thread
-from multiprocessing import Pool
 import multiprocessing
 
 def tokens_2(input_string):
@@ -203,9 +200,16 @@ def check_above_straight(cards):
         rank_sum[index_of_highest_trips] = 0
         return "full house", [index_of_highest_trips, max(np.where(rank_sum >= 2)[0])]
     elif max(color_sum) >= 5:
+        # print('------------------flush-----------------')
+        # print(array)
+        # print(rank_sum)
+        # print(color_sum)
         color_index = np.where(color_sum >= 5)[0]
+        # print(color_index)
         index_of_flush = np.where(array[:,color_index] == 1)[0]
+        # print(index_of_flush)
         index_of_flush = np.sort(index_of_flush)[::-1]
+        # print(index_of_flush)
         return "flush" , [index_of_flush[0], index_of_flush[1], index_of_flush[2], index_of_flush[3], index_of_flush[4]]
     else:
         return None, None
@@ -229,29 +233,32 @@ def check_below_straight(cards):
         high_index = np.where(rank_sum >= 1)[0]
         return "two pairs", [out1, out2, max(high_index)]
     elif np.size(np.where(rank_sum == 2)[0]) == 1:
+        #print(array)
         pair_index = np.where(rank_sum == 2)[0][0]
         high_index = np.where(rank_sum == 1)[0]
         high_index = np.sort(high_index)[::-1]
+        #print(high_index)
         return "pair", [pair_index, high_index[0], high_index[1], high_index[2]]
     else:
+        #print(array)
         high_index = np.where(rank_sum == 1)[0]
         high_index = np.sort(high_index)[::-1]
+        #print(high_index)
         return "high card", [high_index[0], high_index[1], high_index[2], high_index[3], high_index[4]]
 
 comb_rank = {"high card" : 0, "pair" : 1, "two pairs" : 2, "trips" : 3, "straight" : 4, "flush" : 5, "full house" : 6, "quads" : 7, "straight flush" : 8}
 
 def check_combo(cards):
     comb, helpers = check_straights(cards)
+    comb2, helpers2 = check_above_straight(cards)
     if comb == "straight flush":
         return comb, helpers
     if comb == "straight":
-        comb2, helpers2 = check_above_straight(cards)
         if comb2 != None:
             return comb2, helpers2
         else:
             return comb, helpers
     if comb == None:
-        comb2, helpers2 = check_above_straight(cards)
         if comb2 != None:
             return comb2, helpers2
         comb, helpers = check_below_straight(cards)
@@ -271,14 +278,14 @@ def winner(combo1, helpers1, combo2, helpers2):
     if comb_rank[combo1] < comb_rank[combo2]:
         return -1
     
-def monte_carlo_hand(villian_hand, hero_hand = 'AhTd', n =10000):
-    hero = deck(hero_hand)
-    villian = deck(villian_hand)
-    outcome = np.array([0, 0, 0])
-    #print(villian_hand)
+def monte_carlo_hand(villian_hand, hero_hand = 'AhTd', board_cards = '', n =10000):
+    hero = deck(hero_hand) # nie mozna tu wrzucac zablokowanych kart bo sie buguje
+    villian = deck(villian_hand) # nie mozna tu wrzucac zablokowanych kart bo sie buguje
+    outcome_tab = np.array([0, 0, 0])
+    print(villian_hand)
     for m in range(n):
-        board = deck("",(villian_hand+hero_hand))
-        for l in range(5):
+        board = deck(board_cards,(villian_hand+hero_hand))
+        for l in range(5 - len(board_cards)//2):
             board.deal_random()
         hero_river = board + villian + hero*2
         villian_river = board + villian*2 + hero
@@ -286,40 +293,49 @@ def monte_carlo_hand(villian_hand, hero_hand = 'AhTd', n =10000):
         villian_combo, villian_kickers = check_combo(villian_river)
         outcome = winner(hero_combo, hero_kickers, villian_combo, villian_kickers)
         outcome_tab[outcome+1] += 1
-    return outcome
+    return outcome_tab
 
 if __name__ == "__main__":
-    start = time.time()
-    hero = deck("AhTd")
-    outcome_tab = np.array([0, 0, 0])
-    villian_range = player_range(input_codes=code_range('ATs+,AQo+,77+,65,74o,J2s'), blocked_cards='AhTd')
-    for villian_hand in villian_range.hands_list:
-        villian = deck(villian_hand)
-        #print(villian_hand)
-        for n in range(10000):
-            board = deck("",(villian_hand+"AhTd"))
-            for m in range(5):
-                board.deal_random()
-            hero_river = board + villian + hero*2
-            villian_river = board + villian*2 + hero
-            hero_combo, hero_kickers = check_combo(hero_river)
-            villian_combo, villian_kickers = check_combo(villian_river)
-            outcome = winner(hero_combo, hero_kickers, villian_combo, villian_kickers)
-            outcome_tab[outcome+1] += 1
-    end = time.time()
-    print(end - start)
-    #?outcome_tab = outcome_tab / np.sum(outcome_tab)
-    print(outcome_tab)
     
-    num_threads = 10
-    hero = deck("AhTd")
+    # hero_hand = "AhAd"
+    # villian_range_code = 'ATs+,AQo+,77+,65,74o,J2s'
+    # board_cards = "As7h8d"
+
+    hero_hand = "AhTd"
+    villian_range_code = 'K2+'
+    board_cards = "Ks7h8d"
+
+    # outcome_tab = np.array([0, 0, 0])
+    # start = time.time()
+    # hero = deck(hero_hand)
+    # villian_range = player_range(input_codes=code_range(villian_range_code), blocked_cards=hero_hand+board_cards)
+    # for villian_hand in villian_range.hands_list:
+    #     villian = deck(villian_hand)
+    #     print(villian_hand)
+    #     for n in range(10000):
+    #         board = deck(board_cards,(villian_hand+hero_hand))
+    #         for m in range((5 - len(board_cards)//2)):
+    #             board.deal_random()
+    #         hero_river = board + villian + hero*2
+    #         villian_river = board + villian*2 + hero
+    #         hero_combo, hero_kickers = check_combo(hero_river)
+    #         villian_combo, villian_kickers = check_combo(villian_river)
+    #         outcome = winner(hero_combo, hero_kickers, villian_combo, villian_kickers)    
+    #         outcome_tab[outcome+1] += 1
+    # end = time.time()
+    # print(end - start)
+    # outcome_tab = outcome_tab / np.sum(outcome_tab)
+    # print(outcome_tab)
+
     outcome_tab = np.array([0, 0, 0])
-    villian_range = player_range(input_codes=code_range('ATs+,AQo+,77+,65,74o,J2s'), blocked_cards='AhTd')
+    villian_range = player_range(input_codes=code_range(villian_range_code), blocked_cards=hero_hand+board_cards)
     start = time.time()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-        futures = [executor.submit(monte_carlo_hand, villian_hand) for villian_hand in villian_range.hands_list]
+    with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+        futures = [executor.submit(monte_carlo_hand, villian_hand, hero_hand, board_cards) for villian_hand in villian_range.hands_list]
         for future in futures:
             outcome_tab = outcome_tab + future.result()
     end = time.time()
-    print(outcome_tab)
     print(end - start)
+    outcome_tab = outcome_tab / np.sum(outcome_tab)
+    print(outcome_tab)
+    
